@@ -11,8 +11,6 @@ Runs with **zero API keys**: every stage has a deterministic fallback, so
 the full pipeline works offline out of the box.
 
 ---
-![Uploading web_ui_preview.png…]()
-
 
 ## 1. Web UI
 
@@ -34,6 +32,7 @@ This is served by `GET /` (static/index.html) and powered by
 endpoint — see §3.
 
 ---
+![Project Screenshot](web_ui_preview.png)
 
 ## 2. Architecture
 
