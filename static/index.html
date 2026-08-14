@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Autonomous Document Agent</title>
+<style>
+  :root {
+    --paper: #F6F3EC;
+    --paper-raised: #FFFFFF;
+    --ink: #1B2430;
+    --ink-soft: #5B6472;
+    --line: #DAD3C3;
+    --accent: #1F4E79;      /* matches the accent color used inside the generated .docx */
+    --accent-soft: #E4EBF2;
+    --accent-deep: #14344F;
+    --success: #2F6F4E;
+    --success-soft: #E4EFE9;
+    --warn: #9A5B12;
+    --warn-soft: #F3E8D8;
+    --error: #9B2C2C;
+    --error-soft: #F5E3E3;
+    --console-bg: #16202B;
+    --console-text: #CBD5DE;
+    --console-dim: #6C7A89;
+    --radius: 3px;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Georgia", serif;
+    --sans: -apple-system, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    --mono: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  a { color: var(--accent); }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  header.masthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 18px;
+    margin-bottom: 36px;
+    flex-wrap: wrap;
+  }
+  header.masthead h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 30px;
+    letter-spacing: 0.2px;
+    margin: 0;
+  }
+  header.masthead .kicker {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 28px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .card + .card { margin-top: 24px; }
+
+  .card h2 {
+    font-family: var(--serif);
+    font-size: 18px;
+    margin: 0 0 14px;
+    font-weight: 600;
+  }
+
+  label.field-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+
+  textarea#requestInput {
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+    font-family: var(--sans);
+    font-size: 15px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--paper);
+    color: var(--ink);
+  }
+  textarea#requestInput:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .examples {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+  .examples button {
+    font: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .examples button:focus-visible { outline: 2px solid var(--accent); }
+
+  .actions {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  button#generateBtn {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 11px 22px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  button#generateBtn:hover:not(:disabled) { background: var(--accent-deep); }
+  button#generateBtn:disabled { background: var(--ink-soft); cursor: not-allowed; }
+  button#generateBtn:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    display: inline-block;
+    vertical-align: -2px;
+    margin-right: 8px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-line {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+
+  /* ---- pipeline stepper ---- */
+  ul.stepper { list-style: none; margin: 0; padding: 0; }
+  ul.stepper li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px dashed var(--line);
+  }
+  ul.stepper li:last-child { border-bottom: none; }
+  .dot {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex: none;
+    background: var(--line);
+    border: 2px solid var(--line);
+  }
+  .dot.running {
+    border-color: var(--accent);
+    background: var(--paper-raised);
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  .dot.done { background: var(--success); border-color: var(--success); }
+  .dot.revised, .dot.recovered { background: var(--warn); border-color: var(--warn); }
+  .dot.failed { background: var(--error); border-color: var(--error); }
+  @keyframes pulse { 50% { transform: scale(1.35); } }
+  @media (prefers-reduced-motion: reduce) {
+    .dot.running { animation: none; }
+    .spinner { animation: none; border-top-color: rgba(255,255,255,0.4); }
+    #seal.ready { animation: none !important; }
+  }
+
+  .step-name { font-size: 14px; }
+  .step-sub { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+
+  /* ---- section checklist ---- */
+  #sectionList { margin-top: 4px; }
+  #sectionList .empty-hint { font-size: 13px; color: var(--ink-soft); }
+
+  /* ---- console / log feed ---- */
+  .console {
+    background: var(--console-bg);
+    color: var(--console-text);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .console .line { margin: 0 0 3px; }
+  .console .line.done::before { content: "✓ "; color: #6FCB9F; }
+  .console .line.revised::before, .console .line.recovered::before { content: "~ "; color: #E0B45C; }
+  .console .line.failed::before { content: "✕ "; color: #E37D7D; }
+  .console .line.info::before { content: "› "; color: var(--console-dim); }
+  .console .empty-hint { color: var(--console-dim); }
+
+  /* ---- assumptions / result ---- */
+  .assumptions ul, .clarifications ul { margin: 6px 0 0; padding-left: 18px; }
+  .assumptions li, .clarifications li { font-size: 13.5px; margin-bottom: 6px; }
+
+  .result-card {
+    display: none;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+    margin-top: 24px;
+    background: var(--success-soft);
+  }
+  .result-card.error { background: var(--error-soft); }
+  .result-card.show { display: block; }
+
+  .result-top { display: flex; align-items: center; gap: 14px; }
+
+  #seal {
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    border: 2px solid var(--success);
+    display: flex; align-items: center; justify-content: center;
+    flex: none;
+    color: var(--success);
+    font-size: 20px;
+    background: var(--paper-raised);
+  }
+  .result-card.error #seal { border-color: var(--error); color: var(--error); }
+  #seal.ready { animation: seal-in 0.35s ease-out; }
+  @keyframes seal-in {
+    from { transform: scale(0.5) rotate(-12deg); opacity: 0; }
+    to { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+
+  .result-title { font-family: var(--serif); font-size: 19px; font-weight: 600; }
+  .result-sub { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+  a.download-btn {
+    display: inline-block;
+    margin-top: 16px;
+    background: var(--ink);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 10px 20px;
+    border-radius: var(--radius);
+  }
+  a.download-btn:hover { background: var(--accent-deep); }
+  a.download-btn:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
+
+  footer {
+    margin-top: 48px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-soft);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>Autonomous Document Agent</h1>
+    <div class="kicker">plan &middot; execute &middot; reflect &middot; render</div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT COLUMN: request form + result -->
+    <div>
+      <div class="card">
+        <h2>Describe the document you need</h2>
+        <label class="field-label" for="requestInput">Request</label>
+        <textarea id="requestInput" placeholder="e.g. Write a project proposal for Acme Retail Co. to build a new inventory management mobile app. Budget is around $35,000, done in 2 months."></textarea>
+        <div class="examples">
+          Try:
+          <button type="button" data-example="standard">a well-specified proposal</button>
+          &middot;
+          <button type="button" data-example="ambiguous">an ambiguous request</button>
+        </div>
+        <div class="actions">
+          <button id="generateBtn" type="button">Generate document</button>
+          <span class="status-line" id="statusLine"></span>
+        </div>
+      </div>
+
+      <div class="result-card" id="resultCard">
+        <div class="result-top">
+          <div id="seal">✓</div>
+          <div>
+            <div class="result-title" id="resultTitle">—</div>
+            <div class="result-sub" id="resultSub">—</div>
+          </div>
+        </div>
+
+        <div class="assumptions" id="assumptionsBlock" style="display:none;">
+          <label class="field-label" style="margin-top:16px;">Assumptions the agent made</label>
+          <ul id="assumptionsList"></ul>
+        </div>
+
+        <div class="clarifications" id="clarificationsBlock" style="display:none;">
+          <label class="field-label" style="margin-top:16px;">Worth confirming before you send this</label>
+          <ul id="clarificationsList"></ul>
+        </div>
+
+        <a class="download-btn" id="downloadBtn" href="#" style="display:none;">Download .docx</a>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: pipeline + sections + console -->
+    <div>
+      <div class="card">
+        <h2>Pipeline</h2>
+        <ul class="stepper" id="pipelineList">
+          <li data-stage="plan"><span class="dot"></span><div><div class="step-name">Plan</div><div class="step-sub">Classify type, extract entities, decide assumptions</div></div></li>
+          <li data-stage="execute"><span class="dot"></span><div><div class="step-name">Execute</div><div class="step-sub">Generate content for every section</div></div></li>
+          <li data-stage="reflect"><span class="dot"></span><div><div class="step-name">Reflect</div><div class="step-sub">Self-check each section, repair if needed</div></div></li>
+          <li data-stage="render"><span class="dot"></span><div><div class="step-name">Render</div><div class="step-sub">Assemble the formatted .docx</div></div></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Sections</h2>
+        <ul class="stepper" id="sectionList">
+          <li class="empty-hint" style="border:none; padding: 0;">Sections will appear here once planning finishes.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Live log</h2>
+        <div class="console" id="console">
+          <div class="empty-hint">Waiting for a request…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Autonomous Document Agent &middot; FastAPI + LangGraph &middot; runs fully offline unless GROQ_API_KEY is set</footer>
+</div>
+
+<script>
+const requestInput = document.getElementById('requestInput');
+const generateBtn = document.getElementById('generateBtn');
+const statusLine = document.getElementById('statusLine');
+const consoleEl = document.getElementById('console');
+const pipelineList = document.getElementById('pipelineList');
+const sectionList = document.getElementById('sectionList');
+const resultCard = document.getElementById('resultCard');
+const resultTitle = document.getElementById('resultTitle');
+const resultSub = document.getElementById('resultSub');
+const sealEl = document.getElementById('seal');
+const assumptionsBlock = document.getElementById('assumptionsBlock');
+const assumptionsList = document.getElementById('assumptionsList');
+const clarificationsBlock = document.getElementById('clarificationsBlock');
+const clarificationsList = document.getElementById('clarificationsList');
+const downloadBtn = document.getElementById('downloadBtn');
+
+const EXAMPLES = {
+  standard: "Write a project proposal for Acme Retail Co. to build a new inventory management mobile app. Budget is around $35,000 and we want it done within 2 months.",
+  ambiguous: "hey can you put together something for the team about what we discussed on the call yesterday, whatever you think makes sense, not sure if it should be minutes or a plan, just make it look good and send it over asap"
+};
+document.querySelectorAll('.examples button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    requestInput.value = EXAMPLES[btn.dataset.example];
+    requestInput.focus();
+  });
+});
+
+const STAGE_ORDER = ['plan', 'execute', 'reflect', 'render'];
+const STAGE_FOR_STEP = (name) => {
+  if (name === 'Plan document') return 'plan';
+  if (name.startsWith('Generate section')) return 'execute';
+  if (name.startsWith('Reflect')) return 'reflect';
+  if (name === 'Render Word document') return 'render';
+  return null;
+};
+
+function setPipelineDot(stage, status) {
+  const li = pipelineList.querySelector(`li[data-stage="${stage}"] .dot`);
+  if (!li) return;
+  li.className = 'dot ' + status;
+}
+
+function resetUI() {
+  consoleEl.innerHTML = '';
+  sectionList.innerHTML = '<li class="empty-hint" style="border:none; padding:0;">Sections will appear here once planning finishes.</li>';
+  STAGE_ORDER.forEach(s => setPipelineDot(s, ''));
+  resultCard.classList.remove('show', 'error');
+  assumptionsBlock.style.display = 'none';
+  clarificationsBlock.style.display = 'none';
+  downloadBtn.style.display = 'none';
+  sealEl.classList.remove('ready');
+}
+
+function logLine(text, kind) {
+  const div = document.createElement('div');
+  div.className = 'line ' + (kind || 'info');
+  div.textContent = text;
+  consoleEl.appendChild(div);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
+function ensureSectionRow(name) {
+  let row = sectionList.querySelector(`li[data-section="${CSS.escape(name)}"]`);
+  if (row) return row;
+  const hint = sectionList.querySelector('.empty-hint');
+  if (hint) hint.remove();
+  row = document.createElement('li');
+  row.dataset.section = name;
+  row.innerHTML = `<span class="dot"></span><div><div class="step-name">${name}</div><div class="step-sub" data-role="sub">pending</div></div>`;
+  sectionList.appendChild(row);
+  return row;
+}
+
+function updateSectionRow(name, phase, status) {
+  const row = ensureSectionRow(name);
+  const dot = row.querySelector('.dot');
+  const sub = row.querySelector('[data-role="sub"]');
+  dot.className = 'dot ' + status;
+  sub.textContent = phase === 'execute'
+    ? (status === 'done' ? 'content generated' : 'generation ' + status)
+    : (status === 'done' ? 'reviewed — passed self-check' : 'reviewed — ' + status);
+}
+
+function handleStep(evt) {
+  const { name, status } = evt;
+  logLine(`[${status.toUpperCase()}] ${name}`, status);
+
+  const stage = STAGE_FOR_STEP(name);
+  if (!stage) return; // "Validate input" — logged but not part of the 4-stage pipeline UI
+
+  setPipelineDot(stage, status === 'done' ? 'done' : status);
+
+  if (stage === 'execute' && name.startsWith('Generate section: ')) {
+    updateSectionRow(name.replace('Generate section: ', ''), 'execute', status);
+  }
+  if (stage === 'reflect' && name.startsWith('Reflect: ')) {
+    updateSectionRow(name.replace('Reflect: ', ''), 'reflect', status);
+  }
+
+  // Optimistic UX: once a stage's step arrives, the graph is already moving
+  // on to the next fixed stage (the edges are a strict sequence), so show it
+  // as running rather than leaving it looking idle.
+  const idx = STAGE_ORDER.indexOf(stage);
+  if (idx >= 0 && idx < STAGE_ORDER.length - 1) {
+    const nextDot = pipelineList.querySelector(`li[data-stage="${STAGE_ORDER[idx + 1]}"] .dot`);
+    if (nextDot && nextDot.className === 'dot') nextDot.className = 'dot running';
+  }
+}
+
+function handlePlan(evt) {
+  logLine(`Classified as "${evt.document_type}" — ${evt.sections.length} sections planned`, 'info');
+  evt.sections.forEach(name => ensureSectionRow(name));
+}
+
+function handleDone(evt) {
+  resultCard.classList.add('show');
+  if (evt.status !== 'success') {
+    resultCard.classList.add('error');
+    resultTitle.textContent = 'Something went wrong';
+    resultSub.textContent = evt.message || 'The agent could not finish this request.';
+    sealEl.textContent = '✕';
+    return;
+  }
+
+  resultTitle.textContent = evt.title || 'Document ready';
+  resultSub.textContent = `${(evt.document_type || '').replace('_', ' ')} · ${evt.sections.length} sections`;
+  sealEl.textContent = '✓';
+  sealEl.classList.add('ready');
+
+  if (evt.assumptions && evt.assumptions.length) {
+    assumptionsBlock.style.display = 'block';
+    assumptionsList.innerHTML = evt.assumptions.map(a => `<li>${escapeHtml(a)}</li>`).join('');
+  }
+  if (evt.clarifications_needed && evt.clarifications_needed.length) {
+    clarificationsBlock.style.display = 'block';
+    clarificationsList.innerHTML = evt.clarifications_needed.map(c => `<li>${escapeHtml(c)}</li>`).join('');
+  }
+  if (evt.file_path) {
+    const fileName = evt.file_path.split('/').pop().split('\\').pop();
+    downloadBtn.href = `/agent/download/${encodeURIComponent(fileName)}`;
+    downloadBtn.style.display = 'inline-block';
+  }
+  logLine('Document generated successfully.', 'done');
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+async function submitRequest() {
+  const text = requestInput.value.trim();
+  if (!text) { requestInput.focus(); return; }
+
+  resetUI();
+  generateBtn.disabled = true;
+  generateBtn.innerHTML = '<span class="spinner"></span>Generating…';
+  statusLine.textContent = 'Streaming pipeline progress…';
+
+  try {
+    const resp = await fetch('/agent/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ request: text })
+    });
+
+    if (!resp.ok || !resp.body) {
+      let msg = 'Request failed (' + resp.status + ')';
+      try { const j = await resp.json(); if (j.detail) msg = j.detail; } catch (e) {}
+      logLine(msg, 'failed');
+      handleDone({ status: 'error', message: msg });
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        dispatch(JSON.parse(line));
+      }
+    }
+    if (buffer.trim()) dispatch(JSON.parse(buffer));
+  } catch (err) {
+    logLine('Connection error: ' + err.message, 'failed');
+    handleDone({ status: 'error', message: 'Could not reach the agent. Is the server running?' });
+  } finally {
+    generateBtn.disabled = false;
+    generateBtn.textContent = 'Generate document';
+    statusLine.textContent = '';
+  }
+}
+
+function dispatch(evt) {
+  if (evt.type === 'step') handleStep(evt);
+  else if (evt.type === 'plan') handlePlan(evt);
+  else if (evt.type === 'done') handleDone(evt);
+  else if (evt.type === 'error') { logLine(evt.message, 'failed'); handleDone({ status: 'error', message: evt.message }); }
+}
+
+generateBtn.addEventListener('click', submitRequest);
+requestInput.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitRequest();
+});
+</script>
+</body>
+</html>
