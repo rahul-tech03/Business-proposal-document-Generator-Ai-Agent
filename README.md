@@ -11,6 +11,8 @@ Runs with **zero API keys**: every stage has a deterministic fallback, so
 the full pipeline works offline out of the box.
 
 ---
+![Uploading web_ui_preview.png…]()
+
 
 ## 1. Web UI
 
